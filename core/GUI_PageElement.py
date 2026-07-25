@@ -27,6 +27,7 @@ from .GUI_Link import Link
 from .GUI_Util import FreeToolTip
 from .ProjConfig import preference
 from .Utils import readable_timestamp
+from .Platform import is_macos
 
 # 搜索窗口
 class SearchBar(ttk.Frame):
@@ -295,17 +296,27 @@ class OutPutCommand(ttk.Frame):
             print(tr("正在执行中"))
             self.winfo_toplevel().navigate_bar.enable_navigate()
             return
+        runners = {
+            'display': self.preview_display,
+            'synth': self.synth_speech,
+            'exportpr': self.export_xml,
+            'recode': self.export_video,
+        }
+        runner = runners.get(output_type)
+        if runner is None:
+            print(tr("无效的执行"))
+            self.winfo_toplevel().navigate_bar.enable_navigate()
+            return
+        # Cocoa requires window creation and event handling on the main thread.
+        # Pygame is used by preview and video export, so background execution
+        # crashes macOS instead of returning a normal Python exception.
+        if is_macos() and output_type in ['display', 'recode']:
+            self.runing_thread = None
+            Link['runing_thread'] = None
+            runner()
+            return
         # 新建线程
-        if output_type == 'display':
-            self.runing_thread = threading.Thread(target=self.preview_display)
-        elif output_type == 'synth':
-            self.runing_thread = threading.Thread(target=self.synth_speech)
-        elif output_type == 'exportpr':
-            self.runing_thread = threading.Thread(target=self.export_xml)
-        elif output_type == 'recode':
-            self.runing_thread = threading.Thread(target=self.export_video)
-        else:
-            self.runing_thread = threading.Thread(target=lambda:print(tr("无效的执行")))
+        self.runing_thread = threading.Thread(target=runner)
         # 开始执行
         self.runing_thread.start()
         Link['runing_thread'] = self.runing_thread
