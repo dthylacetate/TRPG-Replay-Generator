@@ -52,14 +52,20 @@ def run_macos_output(
     try:
         print(f'[macOS worker] Starting {output_type}.')
         import pygame
+        import pydub
 
         from .FilePaths import Filepath
         from .Medias import MediaObj
         from .OutputType import ExportVideo, ExportXML, PreviewDisplay
+        from .Platform import ffmpeg_executable
         from .ProjConfig import Config
         from .ScriptParser import CharTable, MediaDef, RplGenLog
 
         pygame.init()
+        # pydub looks up `ffmpeg` on PATH by default. The app bundle instead
+        # carries its own executable under the PyInstaller resource directory.
+        pydub.AudioSegment.converter = ffmpeg_executable()
+        pydub.AudioSegment.ffmpeg = pydub.AudioSegment.converter
         Filepath.Mediapath = media_root.rstrip('/') + '/'
         config = Config(dict_input=config_struct)
         config.execute()
