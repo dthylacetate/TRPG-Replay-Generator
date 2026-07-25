@@ -286,7 +286,73 @@ class PreviewDisplay(OutputMediaType):
     def __init__(self, rplgenlog: RplGenLog, config: Config, title:str=''):
         super().__init__(rplgenlog, config)
         self.title = title
+        self.display_size = (config.Width, config.Height)
+        self.preview_render_rect = pygame.Rect(0, 0, config.Width, config.Height)
         # self.main()
+    def preview_default_size(self) -> tuple[int, int]:
+        """Fit the macOS preview window without making a 1080p project full-screen."""
+        try:
+            desktop_width, desktop_height = pygame.display.get_desktop_sizes()[0]
+        except (IndexError, pygame.error):
+            desktop_width, desktop_height = self.config.Width, self.config.Height
+        max_width = min(int(desktop_width * 0.7), 1280)
+        max_height = min(int(desktop_height * 0.7), 720)
+        scale = min(1, max_width / self.config.Width, max_height / self.config.Height)
+        return (
+            max(1, round(self.config.Width * scale)),
+            max(1, round(self.config.Height * scale)),
+        )
+    def update_preview_render_rect(self) -> None:
+        """Center the project frame in the user-resized window without distortion."""
+        display_width, display_height = self.display_size
+        scale = min(display_width / self.config.Width, display_height / self.config.Height)
+        render_width = max(1, round(self.config.Width * scale))
+        render_height = max(1, round(self.config.Height * scale))
+        self.preview_render_rect = pygame.Rect(
+            (display_width - render_width) // 2,
+            (display_height - render_height) // 2,
+            render_width,
+            render_height,
+        )
+    def draw_scaled_preview(self, surface: pygame.Surface) -> None:
+        """Present one complete project-sized surface in the current window."""
+        screen_size = self.screen.get_size()
+        if screen_size != self.display_size:
+            self.display_size = screen_size
+            self.update_preview_render_rect()
+        self.screen.fill((0, 0, 0))
+        render_rect = self.preview_render_rect
+        if surface.get_size() == render_rect.size:
+            self.screen.blit(surface, render_rect)
+        else:
+            self.screen.blit(pygame.transform.smoothscale(surface, render_rect.size), render_rect)
+    def resize_event_types(self) -> tuple[int, ...]:
+        """Return resize events for both legacy and SDL2 Pygame event models."""
+        event_types = [pygame.VIDEORESIZE]
+        for event_name in ('WINDOWRESIZED', 'WINDOWSIZECHANGED'):
+            event_type = getattr(pygame, event_name, None)
+            if event_type is not None:
+                event_types.append(event_type)
+        return tuple(event_types)
+    def set_preview_window_size(self, size: tuple[int, int]) -> None:
+        """Apply a resizable window size and keep the display metadata in sync."""
+        self.screen = pygame.display.set_mode(size=size, flags=pygame.SHOWN | pygame.RESIZABLE)
+        self.display_size = self.screen.get_size()
+        self.update_preview_render_rect()
+    def sync_preview_window_size(self, event: pygame.event.Event) -> None:
+        """Accept both legacy and SDL2 resize events emitted by different Pygame builds."""
+        width = getattr(event, 'w', getattr(event, 'x', self.screen.get_width()))
+        height = getattr(event, 'h', getattr(event, 'y', self.screen.get_height()))
+        if width > 0 and height > 0:
+            self.set_preview_window_size((width, height))
+    def preview_position(self, position: tuple[int, int]) -> tuple[int, int] | None:
+        """Convert window coordinates to project-frame coordinates, excluding letterboxing."""
+        if not self.preview_render_rect.collidepoint(position):
+            return None
+        return (
+            int((position[0] - self.preview_render_rect.x) * self.config.Width / self.preview_render_rect.width),
+            int((position[1] - self.preview_render_rect.y) * self.config.Height / self.preview_render_rect.height),
+        )
     # 重载render，继承显示画面的同时，播放声音
     def render(self, surface: pygame.Surface, this_frame: pd.Series):
         super().render(surface, this_frame)
@@ -441,8 +507,10 @@ class PreviewDisplay(OutputMediaType):
         pygame.display.set_caption('RplGenStudio '+EDITION)
         pygame.display.set_icon(pygame.image.load('./assets/icon.png'))
         self.fps_clock    = pygame.time.Clock()
-        self.screen       = pygame.display.set_mode(size=(self.config.Width,self.config.Height),flags=pygame.SHOWN)
-        self.display_size = (self.config.Width,self.config.Height)
+        window_flags = pygame.SHOWN | (pygame.RESIZABLE if is_macos() else 0)
+        self.screen       = pygame.display.set_mode(size=(self.config.Width,self.config.Height),flags=window_flags)
+        self.display_size = self.screen.get_size()
+        self.update_preview_render_rect()
         # 用来写注释的文本
         self.note_text = pygame.freetype.Font('./assets/SourceHanSansCN-Regular.otf')
         # 建立图形轨道
@@ -712,24 +780,27 @@ class PreviewDisplay(OutputMediaType):
         }
         tip = get_tips()
         tip_mask = pygame.mask.from_surface(tip)
+        welcome_surface = pygame.Surface((self.config.Width, self.config.Height))
+        resize_events = self.resize_event_types()
         # 摸摸伊可
         click_sprite_se = pygame.mixer.Sound('./assets/SE_duck.wav')
         while begin == False:
-            # 放在主屏幕
-            self.screen.blit(main_canvas,(0,0))
+            # 在项目分辨率的画布合成欢迎页，最后统一缩放到窗口。
+            welcome_surface.blit(main_canvas,(0,0))
             # button
-            if button_area.collidepoint(pygame.mouse.get_pos()):
+            mouse_position = self.preview_position(pygame.mouse.get_pos())
+            if mouse_position is not None and button_area.collidepoint(mouse_position):
                 if pygame.mouse.get_pressed()[0]:
-                    self.screen.blit(space['button_press'],button_area)
+                    welcome_surface.blit(space['button_press'],button_area)
                 else:
-                    self.screen.blit(space['button'],button_area)
+                    welcome_surface.blit(space['button'],button_area)
             else:
-                self.screen.blit(space['text_mg'],button_area)
+                welcome_surface.blit(space['text_mg'],button_area)
             # 摸摸伊可
             x,y,w,h = rect['sprit']
             SX = int(x*zoom + self.config.Width)
             SY = int((y + sprit_digit['yps'][sprit_digit['idx']] + damp_digit['yps'][damp_digit['idx']]) * zoom)
-            self.screen.blit(sprit,(SX,SY))
+            welcome_surface.blit(sprit,(SX,SY))
             # 伊可的位置和震动
             sprit_digit['idx']+=1
             damp_digit['idx'] +=1
@@ -742,7 +813,7 @@ class PreviewDisplay(OutputMediaType):
             TX = int(x*zoom) + self.config.Width
             TY = int(y*zoom)
             tip.set_alpha(tip_digit['alpha'][tip_digit['idx']])
-            self.screen.blit(tip,(TX, TY))
+            welcome_surface.blit(tip,(TX, TY))
             # 小贴士的透明度
             tip_digit['idx']+=1
             if tip_digit['idx']>=tip_digit['max']:
@@ -750,7 +821,7 @@ class PreviewDisplay(OutputMediaType):
                 # 刷新小贴士
                 tip = get_tips()
                 tip_mask = pygame.mask.from_surface(tip)
-            # 刷新
+            self.draw_scaled_preview(welcome_surface)
             pygame.display.update()
             if self.is_terminated:
                 pygame.quit()
@@ -759,6 +830,8 @@ class PreviewDisplay(OutputMediaType):
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     return 2
+                elif event.type in resize_events:
+                    self.sync_preview_window_size(event)
                 # 键盘事件
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
@@ -770,20 +843,23 @@ class PreviewDisplay(OutputMediaType):
                         break
                 # 鼠标释放事件
                 elif event.type == pygame.MOUSEBUTTONUP:
+                    click_position = self.preview_position(event.pos)
+                    if click_position is None:
+                        continue
                     # 是否是按钮
-                    if button_area.collidepoint(event.pos):
+                    if button_area.collidepoint(click_position):
                         begin = True
                         break
                     # 是否摸摸伊可
                     try:
-                        if sprit_mask.get_at((event.pos[0] - SX, event.pos[1] - SY)):
+                        if sprit_mask.get_at((click_position[0] - SX, click_position[1] - SY)):
                             damp_digit['idx'] = 0
                             click_sprite_se.play()
                     except:
                         pass
                     # 是否点击小贴士
                     try:
-                        if tip_mask.get_at((event.pos[0] - TX, event.pos[1] - TY)):
+                        if tip_mask.get_at((click_position[0] - TX, click_position[1] - TY)):
                             tip_digit['idx'] = tip_digit['max'] - 1
                     except:
                         pass
@@ -807,7 +883,10 @@ class PreviewDisplay(OutputMediaType):
                     7:"Layer: Bb:{0}; HD:{1}; TX:{2}",
                     8:"Layer: BbS:{0}; HDS:{1}; TXS:{2}"
                     }
-        resize_screen = 0 # 是否要强制缩小整个演示窗体
+        if is_macos():
+            self.set_preview_window_size(self.preview_default_size())
+        resize_events = self.resize_event_types()
+        preview_surface = pygame.Surface((self.config.Width, self.config.Height))
         # 进度条
         progress_bar,triangular = self.progress_bar()
         show_progress_bar = preference.progress_bar_style in ['black','color']
@@ -844,18 +923,11 @@ class PreviewDisplay(OutputMediaType):
                             n=self.breakpoint[(self.breakpoint-n)>0].min()
                             self.stop_SE()
                             continue
-                        elif event.key in [pygame.K_F11, pygame.K_p]: # 调整缩放一半
-                            from pygame._sdl2.video import Window
-                            window = Window.from_display_module()
-                            resize_screen = 1 - resize_screen
-                            if resize_screen == 1:
-                                self.screen = pygame.display.set_mode((self.config.Width//2,self.config.Height//2),flags=pygame.RESIZABLE)
-                                self.display_size = (self.config.Width//2,self.config.Height//2)
-                                window.position = (100,100)
+                        elif event.key in [pygame.K_F11, pygame.K_p]:
+                            if self.display_size == (self.config.Width, self.config.Height):
+                                self.set_preview_window_size(self.preview_default_size())
                             else:
-                                self.screen = pygame.display.set_mode((self.config.Width,self.config.Height),flags=pygame.SHOWN)
-                                self.display_size = (self.config.Width,self.config.Height)
-                                window.position = (0,0)
+                                self.set_preview_window_size((self.config.Width, self.config.Height))
                             pygame.display.update()
                         elif event.key in [pygame.K_F5, pygame.K_i]: # 详细信息
                             show_detail_info = 1 - show_detail_info # 1->0 0->1
@@ -867,10 +939,10 @@ class PreviewDisplay(OutputMediaType):
                     # 鼠标点击事件
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         if event.button == 1: # 左键
-                            click_x, click_y = event.pos
-                            if resize_screen:
-                                click_x = click_x * 2
-                                click_y = click_y * 2
+                            click_position = self.preview_position(event.pos)
+                            if click_position is None:
+                                continue
+                            click_x, click_y = click_position
                             if click_y >= (self.config.Height - self.config.Height//60): # 进度条区区域
                                 # 被点击的帧
                                 frame_click = int(click_x / self.config.Width * timeline_len)
@@ -881,12 +953,8 @@ class PreviewDisplay(OutputMediaType):
                                 self.stop_SE()
                                 pygame.mixer.music.stop()
                                 continue
-                            else:
-                                pass
-                        else:
-                            pass
-                    elif event.type == pygame.VIDEORESIZE:
-                        self.display_size = (event.w,event.h)
+                    elif event.type in resize_events:
+                        self.sync_preview_window_size(event)
                 # 渲染画面
                 if n in self.timeline.index:
                     this_frame = self.timeline.loc[n]
@@ -934,15 +1002,10 @@ class PreviewDisplay(OutputMediaType):
                 else:
                     if preference.framerate_counter:
                         self.annot.blit(self.note_text.render(str(et),fgcolor=MediaObj.cmap['notetext'],size=0.0278*self.config.Height)[0],(10,10))
-                # 显示到屏幕
-                if resize_screen == 1:
-                    # 如果缩放尺寸
-                    self.screen.blit(pygame.transform.smoothscale(self.image,self.display_size),(0,0))
-                    self.screen.blit(pygame.transform.smoothscale(self.annot,self.display_size),(0,0))
-                else:
-                    # 如果不缩放
-                    self.screen.blit(self.image,(0,0))
-                    self.screen.blit(self.annot,(0,0))
+                # 合成后统一缩放，确保窗口变小时不会裁切项目画面。
+                preview_surface.blit(self.image, (0, 0))
+                preview_surface.blit(self.annot, (0, 0))
+                self.draw_scaled_preview(preview_surface)
                 pygame.display.update()
                 n = n + forward #下一帧
                 self.fps_clock.tick(self.config.frame_rate)

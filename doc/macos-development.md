@@ -103,3 +103,7 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_tes
 - The application currently has an ad-hoc signature only. External release
   requires an Apple Developer certificate, notarization, and a DMG or ZIP
   distribution workflow.
+- Dice presentation effects can display or animate incorrectly in the macOS
+  real-time preview. The same project exports correctly to MP4, so use the
+  exported video as the authoritative result until this preview-only issue is
+  reproduced and fixed.
