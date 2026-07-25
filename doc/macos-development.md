@@ -37,6 +37,14 @@ pygame preview window.
 conda run --no-capture-output --name rplgen-macos python tools_scripts/validate_toy_macos.py --preview-init
 ```
 
+Build an Apple Silicon application bundle with its own assets and static FFmpeg:
+
+```sh
+conda run --no-capture-output --name rplgen-macos python -m pip install -r requirements-macos-build.txt
+conda run --no-capture-output --name rplgen-macos python tools_scripts/build_macos_app.py
+conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_test_macos_app.py
+```
+
 ## Port Progress
 
 ### Stage 1: Development Baseline
@@ -66,6 +74,16 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/validate_
 - An unavailable cloud TTS engine now emits a warning and only disables that
   character, allowing local Beats and system voices to continue working.
 
+### Stage 4: Native Application Bundle
+
+- Added a reproducible PyInstaller builder for an Apple Silicon
+  `RplGenStudio.app`, including `assets`, `intel`, an `.icns` application icon,
+  and a static ARM64 FFmpeg binary.
+- Added an app-bundle smoke test that verifies the ad-hoc code signature,
+  bundled FFmpeg, and a GUI launch outside the source checkout.
+- The initial bundle is approximately 259 MB and is written to
+  `dist/macos/RplGenStudio.app`.
+
 ## Known Baseline Limitations
 
 - `tkextrafont` is not installable from its public package on macOS because its
@@ -78,3 +96,6 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/validate_
 - Cloud TTS services still require valid provider credentials and an SDK version
   compatible with the service. The bundled sample's placeholder credentials are
   intentionally skipped during local validation.
+- The application currently has an ad-hoc signature only. External release
+  requires an Apple Developer certificate, notarization, and a DMG or ZIP
+  distribution workflow.

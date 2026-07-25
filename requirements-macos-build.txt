@@ -1,0 +1,4 @@
+# Tooling required only when building the macOS application bundle.
+-r requirements-macos.txt
+pyinstaller==6.21.0
+imageio-ffmpeg==0.6.0
