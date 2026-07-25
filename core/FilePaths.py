@@ -5,11 +5,12 @@ import os
 import sys
 import glob
 from core.Exceptions import MediaError
+from core.Platform import application_root
 
 # 文件路径类
 class Filepath:
     # 工作路径，转义字符 .
-    RplGenpath:str = os.getcwd().replace('\\','/') + '/'
+    RplGenpath:str = str(application_root()).replace('\\','/') + '/'
     # 媒体定义文件路径，转义字符：@
     Mediapath:str = RplGenpath
     # 初始化

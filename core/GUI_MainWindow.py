@@ -21,6 +21,7 @@ from .ProjConfig import preference
 from .GUI_Language import Translate
 from .GUI_Link import Link
 from .Utils import EDITION
+from .Platform import is_macos
 # 项目视图
 from .GUI_View import EmptyView, ProjectView, ConsoleView, ScriptView, PreferenceView, PortalView
 
@@ -67,39 +68,19 @@ class RplGenStudioMainWindow(ttk.Window):
         self.view_show('project')
     # 初始化字体
     def font_init(self):
-        # 字体
-        # 系统字体
-        if preference.lang == 'zh':
-            if 'win32' in sys.platform:
-                system_font_family = 'Microsoft YaHei UI'
-            elif 'linux' in sys.platform:
-                system_font_family = '文泉驿微米黑'
-            elif 'darwin' in sys.platform:
-                system_font_family = '华文黑体'
-            else:
-                system_font_family = '华文黑体'
+        if 'win32' in sys.platform:
+            system_font_family = 'Microsoft YaHei UI'
+        elif 'linux' in sys.platform:
+            system_font_family = '文泉驿微米黑'
+        elif is_macos():
+            system_font_family = 'PingFang SC'
         else:
-            # TODO: 英文
-            if 'win32' in sys.platform:
-                system_font_family = 'Microsoft YaHei UI'
-            elif 'linux' in sys.platform:
-                system_font_family = '文泉驿微米黑'
-            elif 'darwin' in sys.platform:
-                system_font_family = '华文黑体'
-            else:
-                system_font_family = '华文黑体'
+            system_font_family = 'TkDefaultFont'
         self.system_font_family = system_font_family
         Link['system_font_family'] = system_font_family
-        # 终端字体
-        ## 由于steam库目录有时会存在空格，导致无法正常加载字体。虽然令人费解，但是还是要想想办法
-        if preference.lang == 'zh':
-            try:
-                from tkextrafont import Font as FileFont
-                self.terminal_font = FileFont(file='./assets/sarasa-mono-sc-regular.ttf')
-                terminal_font_family = 'Sarasa Mono SC'
-            except Exception as E:
-                print(E)
-                terminal_font_family = system_font_family
+
+        if is_macos():
+            terminal_font_family = 'Menlo'
         else:
             try:
                 from tkextrafont import Font as FileFont
@@ -288,8 +269,8 @@ class RplGenStudioMainWindow(ttk.Window):
         elif 'linux' in sys.platform:
             return 1.0
         else:
-            print(sys.platform)
-            return 2.0
+            # Tk uses logical points on macOS, including Retina displays.
+            return 1.0
     # 进入或者取消全屏
     def switch_fullscreen(self,event):
         self.attributes("-fullscreen", not self.attributes("-fullscreen"))

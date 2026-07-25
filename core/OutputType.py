@@ -21,6 +21,7 @@ from .Exceptions import WarningPrint, MainPrint, VideoPrint, PrxmlPrint
 from .Medias import BGM, Audio, MediaObj
 from .Regexs import RE_label
 from .Utils import EDITION, zoom_surface, PUBLICATION
+from .Platform import ffmpeg_executable, is_macos, is_windows
 
 # 输出模式：预览、XML或者MP4
 
@@ -429,11 +430,12 @@ class PreviewDisplay(OutputMediaType):
     def display_init(self)->int:
         # 修复缩放错误
         # if self.fix_screen == True:
-        try:
-            import ctypes
-            ctypes.windll.user32.SetProcessDPIAware() #修复错误的缩放，尤其是在移动设备。
-        except Exception:
-            print(WarningPrint('FixScrZoom'))
+        if is_windows():
+            try:
+                import ctypes
+                ctypes.windll.user32.SetProcessDPIAware() #修复错误的缩放，尤其是在移动设备。
+            except Exception:
+                print(WarningPrint('FixScrZoom'))
         # 初始化显示窗口
         pygame.init()
         pygame.display.set_caption('RplGenStudio '+EDITION)
@@ -1125,7 +1127,8 @@ class ExportVideo(OutputMediaType):
             i_format = 'gray'
         # 硬件加速
         if preference.hwaccels:
-            options = {'c:v':'h264_nvenc'}
+            encoder = 'h264_videotoolbox' if is_macos() else 'h264_nvenc'
+            options = {'c:v':encoder}
         else:
             options = {}
         # 音频轨道
@@ -1149,7 +1152,7 @@ class ExportVideo(OutputMediaType):
                     **options
                     ) # 输出
                 .overwrite_output()
-                .run_async(pipe_stdin=True)
+                .run_async(cmd=ffmpeg_executable(), pipe_stdin=True)
             )
         else:
             output_engine = (
@@ -1170,7 +1173,7 @@ class ExportVideo(OutputMediaType):
                     **options
                     ) # 输出
                 .overwrite_output()
-                .run_async(pipe_stdin=True)
+                .run_async(cmd=ffmpeg_executable(), pipe_stdin=True)
             )
         return output_engine
     # 主流程：0终止，1异常，2终止

@@ -23,6 +23,30 @@ Check the installed environment before debugging an application issue:
 conda run --no-capture-output --name rplgen-macos python tools_scripts/check_macos_environment.py
 ```
 
+Run the media smoke test after changing FFmpeg or platform code:
+
+```sh
+conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_test_macos.py
+```
+
+## Port Progress
+
+### Stage 1: Development Baseline
+
+- Added a Python 3.11 Apple Silicon dependency set and environment checker.
+- Installed Homebrew FFmpeg for source development.
+- Confirmed the source GUI can start on macOS.
+
+### Stage 2: Platform Runtime
+
+- Added centralized application-root and FFmpeg discovery, with an optional
+  `RPLGEN_FFMPEG` override for development and future bundled builds.
+- Fixed POSIX audio conversion to pass FFmpeg arguments without a shell.
+- Routed MP4 export through the same FFmpeg discovery and selected
+  `h264_videotoolbox` instead of NVIDIA encoding when macOS acceleration is enabled.
+- Replaced the unavailable `tkextrafont` path with `PingFang SC` and `Menlo` on
+  macOS, and removed the incorrect Retina `2.0` window multiplier.
+
 ## Known Baseline Limitations
 
 - `tkextrafont` is not installable from its public package on macOS because its

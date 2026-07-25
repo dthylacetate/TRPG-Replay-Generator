@@ -12,6 +12,7 @@ import os
 import subprocess
 from datetime import datetime
 from emoji import replace_emoji
+from .Platform import ffmpeg_executable
 
 # 文字处理
 # UF : 将2个向量组合成"(x,y)"的形式
@@ -187,11 +188,10 @@ def extract_valid_variable_name(string):
 
 # 文件格式
 def convert_audio(target_type:str,ifile:str,ofile:str):
-    # ffmpeg
-    if os.path.isfile('./ffmpeg.exe'):
-        ffmpeg_exec = 'ffmpeg.exe'
-    else:
-        ffmpeg_exec = 'ffmpeg'
+    try:
+        ffmpeg_exec = ffmpeg_executable()
+    except FileNotFoundError as error:
+        return False, str(error)
     # 目标格式
     if target_type == 'wav':
         target_format = target_type
@@ -202,7 +202,7 @@ def convert_audio(target_type:str,ifile:str,ofile:str):
             '-vn',
             '-y',
             ofile,
-            '-loglevel','quiet'
+            '-loglevel','error'
         ]
     elif target_type == 'ogg':
         target_format = target_type
@@ -215,16 +215,23 @@ def convert_audio(target_type:str,ifile:str,ofile:str):
             '-ab','128k',
             '-y',
             ofile,
-            '-loglevel','quiet'
+            '-loglevel','error'
         ]
     else:
         return False, f"不支持的格式：{target_type}"
     # 执行
-    try:
-        subprocess.run(ffmpeg_cmd, check=True, shell=True)
-        return True, ofile
-    except subprocess.CalledProcessError as E:
-        return False, str(E)
+    completed = subprocess.run(
+        ffmpeg_cmd,
+        check=False,
+        shell=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return False, completed.stderr.strip() or f'FFmpeg exited with {completed.returncode}.'
+    if not os.path.isfile(ofile):
+        return False, 'FFmpeg completed without creating the converted audio file.'
+    return True, ofile
 
 # 计算分贝值
 def volume_to_db(volume_ratio):

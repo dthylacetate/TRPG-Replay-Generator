@@ -2,6 +2,13 @@
 # coding: utf-8
 
 import multiprocessing
+import os
+
+from core.Platform import application_root
+
+# Existing assets use relative paths. Keep source and bundled launches aligned.
+os.chdir(application_root())
+
 from core.GUI_Welcome import RplGenStudioWelcome
 
 def show_welcome(conn):
