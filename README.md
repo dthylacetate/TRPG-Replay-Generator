@@ -1,12 +1,8 @@
-[English](./README-en.md)
-
 # 概述
 
 ![logo](./doc/logo.png)
 
 回声工坊（TRPG-Replay-Generator）是一款专注于跑团replay视频的专业制作工具：
-
-回声工坊已发行在steam商店，商业发行版的名称为`回声工坊 RplGenStudio`，发行商名称为`Betelgeuse Industry`。
 
 ## 特点和优势
 
@@ -17,32 +13,20 @@
     2. 海豹骰提供骰系级支持，log可直接导出回声工坊剧本格式
     3. 可以将项目导出为PR项目，保留最大化的后期编辑空间
     4. 允许导出透明背景视频素材
-4. **创意分享**：支持创意工坊，允许用户分享和下载预设样式模板，利用模板实现一键成片
+## macOS 配置要求
 
-# 软件下载
+本分支面向 Apple Silicon（`arm64`）Mac，当前验证环境为 macOS 15 和 Python 3.11。
 
-正式在steam商店发行之后，本仓库不再提供开包即用的二进制可执行文件，仅提供源代码。
+**运行已构建应用：**
+1. Apple Silicon（M 系列）Mac，macOS 15 或更高版本；
+2. 建议 8GB 或更高内存；
+3. 至少 2GB 可用硬盘空间。
 
-源代码版本不拥有内置语音合成服务的权限，需要自行注册语音合成账号，并填写key到【首选项】
-
-## [steam商店](https://store.steampowered.com/app/2550090/_RplGen_Studio/)
-- 回声工坊在steam商店的售价是13美元，或者人民币50元；<p>
-- 自动更新、创意工坊、内置语音服务等，仅在steam平台版本提供。<p>
-
-## [爱发电](https://afdian.net/item/68ed814c7df011eebefc52540025c377)
-- 爱发电中同样销售steam的激活码（CDkey），定价为50元；<p>
-- 购买之后需要在steam平台激活，功能等价于在steam商店直接购买。<p>
-
-## 配置要求
-**最低：**
-1. 系统：Windows 10
-2. 内存：4GB
-3. 硬盘：1GB
-
-**最佳：**
-1. 系统：Windows 10
-2. 内存：8GB
-3. 硬盘：1GB
+**从源代码开发或构建：**
+1. Apple Silicon（M 系列）Mac，macOS 15 或更高版本；
+2. Git、Homebrew、Miniconda 或 Anaconda；
+3. Python 3.11；
+4. 建议预留 5GB 以上空间，用于 Conda 环境、PyInstaller 缓存与应用产物。
 
 # 操作手册
 
@@ -101,7 +85,7 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/validate_
 
 ## 4. 配置语音合成
 
-源代码和本地 macOS 构建版不使用 Windows/Steam 发行版的内置语音密钥服务。请使用自己的云服务凭据：
+源代码和本地 macOS 构建版不使用内置语音密钥服务。请使用自己的云服务凭据：
 
 1. 打开软件的“首选项”。
 2. 关闭“使用内置密钥”。
@@ -145,38 +129,6 @@ xattr -dr com.apple.quarantine dist/macos/RplGenStudio.app
 - 实时预览中的骰子演出动画可能有显示或动画异常；同一项目的 MP4 导出结果正常，应以导出视频为准。
 - `tkextrafont` 无法在 macOS 上按原方式安装，界面会自动使用 `PingFang SC` 与 `Menlo` 等系统字体。
 - macOS 版本仅验证 Apple Silicon；Intel Mac 需要单独构建与测试。
-
-# 构建
-
-## 环境要求：
-
-环境和依赖项：
-
-1. python>=3.8
-1. pygame>=2.0.1
-1. numpy>=1.18.5
-1. pandas>=1.0.5
-1. Pillow>=7.2.0
-1. ffmpeg-python>=0.2.0
-1. pydub>=0.25.1
-1. openpyxl>=3.0.4
-1. azure-cognitiveservices-speech>=1.31.0
-1. ttkbootstrap>=1.10.1
-1. tkextrafont==0.6.3
-1. chlorophyll==0.3.1
-1. pyttsx3==2.90
-1. websocket-client==1.0.1
-1. pinyin==0.4.0
-
-除上述项目外，还需要：
-
-1. 下载[ffmpeg](https://ffmpeg.org/download.html)的可执行文件，并解压到本仓库根目录。
-1. 安装[阿里云智能语音服务Python SDK](https://github.com/aliyun/alibabacloud-nls-python-sdk)
-1. 安装[7z](https://github.com/sparanoid/7z)，并添加到环境变量，打包时需要。（推荐）
-
-## 构建和打包
-
-使用[打包脚本](./bulid.ps1)，即可将软件打包。
 
 # 开源协议
 
