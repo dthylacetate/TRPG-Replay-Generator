@@ -130,6 +130,9 @@ class VoiceArgs(ttk.Frame):
         except SynthesisError as E:
             print(WarningPrint('PrevFail',E))
             return False, tr('语音Key未初始化！请检查版本，或者填写自定义key。')
+        except Exception as E:
+            print(WarningPrint('PrevFail',E))
+            return False, tr('语音合成失败！检视控制台获取详细信息。')
         # 执行合成
         try:
             temp_path = str(home_dir / '.rplgen' / 'preview_tempfile.wav').replace('\\','/')

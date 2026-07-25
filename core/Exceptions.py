@@ -219,6 +219,8 @@ class SynthesisError(RplGenError):
                         "阿里云错误：语音合成失败，生成了一个空文件！"],
         'AliOther'    :["AliyunError: Other exception occurred!",
                         "阿里云错误：语音合成失败，发生了一个其他错误。"],
+        'AliService'  :["AliyunError: Service returned: {}",
+                        "阿里云错误：语音服务返回：{}"],
         'AliClose'    :["AliyunError: Close file failed since: {}",
                         "阿里云错误：关闭文件时失败，由于：{}"],
         'AliWrite'    :["AliyunError: Write data failed: {}",

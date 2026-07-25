@@ -7,6 +7,7 @@ import time
 import hmac
 import wave
 import urllib
+import inspect
 import hashlib
 import base64
 import json
@@ -16,6 +17,7 @@ import pandas as pd
 import os
 import pydub
 import nls
+from nls import token as nls_token
 import azure.cognitiveservices.speech as speechsdk
 import pyttsx3
 from websocket import ABNF, WebSocketApp
@@ -82,15 +84,6 @@ class Aliyun_TTS_engine(TTS_engine):
             self.balance = int(voice_lib.loc[self.voice,'avaliable_volume'])
         else:
             self.balance = balance
-        self.synthesizer = nls.NlsSpeechSynthesizer(
-                    url=Aliyun_TTS_engine.URL,
-                    akid=Aliyun_TTS_engine.AKID, # BUG in aliyun nls SDK v1.0.0，ak和aks不再是这个类的初始化参数，将仅支持token
-                    aksecret=Aliyun_TTS_engine.AKKEY,
-                    appkey=Aliyun_TTS_engine.APPKEY,
-                    on_data=self.on_data,
-                    on_close=self.on_close,
-                    callback_args=[self.ID,self.voice]
-                )
         # 检查key状态
         if (
             Aliyun_TTS_engine.AKID == 'Your_AccessKey' or 
@@ -98,6 +91,28 @@ class Aliyun_TTS_engine(TTS_engine):
             Aliyun_TTS_engine.APPKEY == 'Your_Appkey'
         ):
             raise SynthesisError('AliyunKey')
+        synthesizer_args = {
+            'url': Aliyun_TTS_engine.URL,
+            'appkey': Aliyun_TTS_engine.APPKEY,
+            'on_data': self.on_data,
+            'on_close': self.on_close,
+            'callback_args': [self.ID, self.voice],
+        }
+        self.service_error = None
+        # Newer Aliyun NLS SDKs require a short-lived token instead of accepting
+        # AccessKey credentials on the WebSocket client directly.
+        synthesizer_parameters = inspect.signature(nls.NlsSpeechSynthesizer).parameters
+        if 'on_error' in synthesizer_parameters:
+            synthesizer_args['on_error'] = self.on_error
+        if 'token' in synthesizer_parameters:
+            synthesizer_args['token'] = nls_token.getToken(
+                Aliyun_TTS_engine.AKID,
+                Aliyun_TTS_engine.AKKEY,
+            )
+        else:
+            synthesizer_args['akid'] = Aliyun_TTS_engine.AKID
+            synthesizer_args['aksecret'] = Aliyun_TTS_engine.AKKEY
+        self.synthesizer = nls.NlsSpeechSynthesizer(**synthesizer_args)
     def start(self,text,ofile):
         self.ofile = open(ofile,'wb')
         success = self.synthesizer.start(text = text,
@@ -105,6 +120,8 @@ class Aliyun_TTS_engine(TTS_engine):
                                          speech_rate=self.speech_rate,
                                          pitch_rate=self.pitch_rate,
                                          volume=self.volume)
+        if self.service_error is not None:
+            raise SynthesisError('AliService', self.service_error)
         # 检查是否是空文件 通常是由于AppKey错误导致的，或者输入为空
         # 若没有发言内容，阿里云也会生成一个44字节的空文件！
         if os.path.getsize(ofile) <= 128:
@@ -130,6 +147,9 @@ class Aliyun_TTS_engine(TTS_engine):
         except Exception as E:
             # [AliyunError]: Write data failed: write to closed file 如果出现这个问题，会重复很多次，然后合成一个错误的文件
             print(SynthesisError('AliWrite',E))
+    def on_error(self, message, *args):
+        # Defer reporting to start() so preview and batch synthesis share it.
+        self.service_error = message
 
 # Azure 语音合成 alpha 1.10.3
 class Azure_TTS_engine(TTS_engine):
