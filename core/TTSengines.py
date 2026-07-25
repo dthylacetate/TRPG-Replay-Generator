@@ -10,6 +10,7 @@ import urllib
 import hashlib
 import base64
 import json
+import subprocess
 import numpy as np
 import pandas as pd
 import os
@@ -20,6 +21,7 @@ import pyttsx3
 from websocket import ABNF, WebSocketApp
 from .Regexs import RE_label
 from .Exceptions import SynthesisError, WarningPrint
+from .Platform import is_macos
 
 voice_lib = pd.read_csv('./assets/voice_volume.tsv',sep='\t').set_index('Voice')
 
@@ -498,36 +500,71 @@ class System_TTS_engine(TTS_engine):
         self.aformat = aformat
         self.speech_rate = speech_rate
         try:
-            # 合成器
-            self.synthesizer = pyttsx3.init()
-            # 获取可用音源名
-            self.get_available()
-            # 应用参数
-            try:
-                if voice:
-                    self.synthesizer.setProperty('voice', self.voice_list[self.voice])
-                self.synthesizer.setProperty('rate', int(self.linear_mapping(self.speech_rate)*200))
-            except KeyError:
-                raise SynthesisError('SysInvArg',self.voice)
+            if is_macos():
+                # pyttsx3's macOS driver is incompatible with current PyObjC.
+                # The native say command provides the same local synthesis role.
+                self.synthesizer = 'say'
+                self.get_available()
+                if voice and voice not in self.voice_list:
+                    raise SynthesisError('SysInvArg', self.voice)
+            else:
+                self.synthesizer = pyttsx3.init()
+                self.get_available()
+                try:
+                    if voice:
+                        self.synthesizer.setProperty('voice', self.voice_list[self.voice])
+                    self.synthesizer.setProperty('rate', int(self.linear_mapping(self.speech_rate)*200))
+                except KeyError:
+                    raise SynthesisError('SysInvArg',self.voice)
         except Exception:
             self.synthesizer = None
     # 获取可用语音列表
     def get_available(self):
         self.voice_list = {}
+        if is_macos() and self.synthesizer == 'say':
+            completed = subprocess.run(
+                ['say', '-v', '?'],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if completed.returncode == 0:
+                for line in completed.stdout.splitlines():
+                    voice_name, separator, _ = line.partition('  ')
+                    if separator and voice_name:
+                        self.voice_list[voice_name.rstrip()] = voice_name.rstrip()
+            return self.voice_list
         if self.synthesizer:
             for voice in self.synthesizer.getProperty('voices'):
                 self.voice_list[voice.name] = voice.id
         return self.voice_list
     # 开始
     def start(self, text, ofile):
+        if is_macos() and self.synthesizer == 'say':
+            command = ['say']
+            if self.voice:
+                command.extend(['-v', self.voice])
+            command.extend([
+                '-r', str(int(self.linear_mapping(self.speech_rate) * 200)),
+                '-o', ofile,
+                '--file-format=WAVE',
+                '--data-format=LEI16@48000',
+                text,
+            ])
+            completed = subprocess.run(command, check=False, capture_output=True, text=True)
+            if completed.returncode != 0 or not os.path.isfile(ofile):
+                detail = completed.stderr.strip() or 'No file saved!'
+                raise SynthesisError('SysFailed', detail)
+            self.print_success(text=text,ofile=ofile)
+            return
         if self.synthesizer:
             self.synthesizer.save_to_file(text, ofile)
             try:
                 self.synthesizer.runAndWait()
             except Exception as E:
-                SynthesisError('SysFailed',E)
+                raise SynthesisError('SysFailed',E)
             if not os.path.isfile(ofile):
-                SynthesisError('SysFailed','No file saved!')
+                raise SynthesisError('SysFailed','No file saved!')
             # 输出显示
             self.print_success(text=text,ofile=ofile)
         else:

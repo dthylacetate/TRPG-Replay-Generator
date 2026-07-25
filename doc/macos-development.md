@@ -29,6 +29,14 @@ Run the media smoke test after changing FFmpeg or platform code:
 conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_test_macos.py
 ```
 
+Run the complete toy-project validation after changing parsers, media objects,
+exporters, or TTS code. Add `--preview-init` to briefly open and initialize the
+pygame preview window.
+
+```sh
+conda run --no-capture-output --name rplgen-macos python tools_scripts/validate_toy_macos.py --preview-init
+```
+
 ## Port Progress
 
 ### Stage 1: Development Baseline
@@ -47,6 +55,17 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_tes
 - Replaced the unavailable `tkextrafont` path with `PingFang SC` and `Menlo` on
   macOS, and removed the incorrect Retina `2.0` window multiplier.
 
+### Stage 3: Project Workflow Validation
+
+- Validated the complete `toy/LogFile.rgl` parser flow, Premiere XML export,
+  MP4 export, and pygame preview initialization at a small test resolution.
+- Added a native macOS system-TTS implementation based on `say`, because the
+  current `pyttsx3` macOS driver is incompatible with modern PyObjC.
+- Made file-backed media definitions own their `@/` root, and updated timeline
+  storage for pandas 3 so numeric render data keeps its intended types.
+- An unavailable cloud TTS engine now emits a warning and only disables that
+  character, allowing local Beats and system voices to continue working.
+
 ## Known Baseline Limitations
 
 - `tkextrafont` is not installable from its public package on macOS because its
@@ -56,3 +75,6 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_tes
   packaging stage will bundle a native FFmpeg executable inside the `.app`.
 - The current source still assumes it runs from the repository root. Resource
   path refactoring is the next implementation stage.
+- Cloud TTS services still require valid provider credentials and an SDK version
+  compatible with the service. The bundled sample's placeholder credentials are
+  intentionally skipped during local validation.

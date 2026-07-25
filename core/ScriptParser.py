@@ -154,6 +154,7 @@ class Script:
 class MediaDef(Script):
     def __init__(self, string_input=None, dict_input=None, file_input=None, json_input=None) -> None:
         super().__init__(string_input, dict_input, file_input, json_input)
+        self.file_input = file_input
         # 媒体的相对位置@
         if file_input is not None:
             self.media_path = os.path.dirname(file_input.replace('\\','/'))
@@ -434,6 +435,11 @@ class MediaDef(Script):
         else:
             self.Medias[obj_name] = object_this
     def execute(self) -> dict:
+        # A file-backed definition owns the @/ media root. GUI projects that
+        # provide an in-memory definition keep their already selected root.
+        if self.file_input is not None:
+            media_root = self.media_path or '.'
+            Filepath.Mediapath = media_root.rstrip('/') + '/'
         # 媒体对象的容器
         self.Medias = {}
         self.activated = True
@@ -1280,7 +1286,9 @@ class RplGenLog(Script):
     def tx_method_execute(self,text:str,text_obj:Text,tx_method:dict,line_limit:int,this_duration:int,line_num:int=4,i=0) -> np.ndarray:
         # content: 不包含richlabel
         content, idxmap = text_obj.raw(text)
-        idx_uf = np.frompyfunc(lambda x:idxmap[x],1,1)
+        # NumPy/Pandas may promote a constant timeline to float. Text indices
+        # remain discrete, so normalize before looking them up in idxmap.
+        idx_uf = np.frompyfunc(lambda x: idxmap[int(x)],1,1)
         # 
         content_length:int = len(content)
         UF_limit_content_length:np.ufunc = np.frompyfunc(lambda x:int(x) if x<=content_length else content_length,1,1)
@@ -1443,7 +1451,7 @@ class RplGenLog(Script):
         # 如果超出了当前最长上限，那么执行一次延长
         if idx2 >= self.main_length:
             append_timeline = pd.DataFrame(
-                dtype=str,
+                dtype=object,
                 index=range(self.main_length,self.main_length+30000),
                 columns=self.render_arg
             )
@@ -1509,7 +1517,7 @@ class RplGenLog(Script):
         # 断点文件: index + 1 == section, 因为还要包含尾部，所以总长比section长1
         self.break_point = pd.Series(0,index=range(0,len(self.struct.keys())+1),dtype=int)
         # 视频+音轨 时间轴
-        self.main_timeline = pd.DataFrame(dtype=str,index=range(30000),columns=self.render_arg)
+        self.main_timeline = pd.DataFrame(dtype=object,index=range(30000),columns=self.render_arg)
         self.main_length = 30000
         # 更新 self.media
         self.medias['black'] = Background('black')
@@ -1661,7 +1669,7 @@ class RplGenLog(Script):
                     if this_duration<(2*method_dur+1):
                         this_duration = 2*method_dur+1
                     # 建立本小节的timeline文件
-                    this_timeline=pd.DataFrame(index=range(0,this_duration),dtype=str,columns=self.render_arg)
+                    this_timeline=pd.DataFrame(index=range(0,this_duration),dtype=object,columns=self.render_arg)
                     this_timeline['BG2'] = this_background
                     this_timeline['BG2_a'] = 100
                     # 载入切换效果
@@ -1970,18 +1978,18 @@ class RplGenLog(Script):
                     method = bg_method['method']
                     method_dur = bg_method['method_dur']
                     if method=='replace': #replace 改为立刻替换 并持续n秒
-                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=str,columns=self.render_arg)
+                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=object,columns=self.render_arg)
                         this_timeline['BG2']=next_background
                         this_timeline['BG2_a']=100
                         this_timeline['BG2_c']=self.medias[next_background].pos.use()
                     elif method=='delay': # delay 等价于原来的replace，延后n秒，然后替换
-                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=str,columns=self.render_arg)
+                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=object,columns=self.render_arg)
                         this_timeline['BG2']=this_background
                         this_timeline['BG2_a']=100
                         this_timeline['BG2_c']=self.medias[this_background].pos.use()
                     # 'black','white'
                     elif method in ['black','white']:
-                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=str,columns=self.render_arg)
+                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=object,columns=self.render_arg)
                         # 下图层BG2，前半程是旧图层，后半程是新图层，透明度均为100
                         this_timeline.loc[:(method_dur//2),'BG2'] = this_background
                         this_timeline.loc[(method_dur//2):,'BG2'] = next_background
@@ -1994,7 +2002,7 @@ class RplGenLog(Script):
                         this_timeline['BG1_a']=100-np.abs(self.dynamic['formula'](-100,100,method_dur))
                         pass
                     elif method in ['cross','push','cover']: # 交叉溶解，黑场，白场，推，覆盖
-                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=str,columns=self.render_arg)
+                        this_timeline=pd.DataFrame(index=range(0,method_dur),dtype=object,columns=self.render_arg)
                         this_timeline['BG1']=next_background
                         this_timeline['BG1_c']=self.medias[next_background].pos.use()
                         this_timeline['BG2']=this_background
@@ -2320,7 +2328,7 @@ class RplGenLog(Script):
                 this_dialog_method = {'Am':None,'Bb':None,'A1':0,'A2':0,'A3':0}
                 frame_rate = config.frame_rate
                 try:
-                    this_timeline=pd.DataFrame(index=range(0,frame_rate*4),dtype=str,columns=self.render_arg)
+                    this_timeline=pd.DataFrame(index=range(0,frame_rate*4),dtype=object,columns=self.render_arg)
                     # 背景
                     alpha_timeline = np.hstack([self.dynamic['formula'](0,1,frame_rate//2),np.ones(frame_rate*3-frame_rate//2),self.dynamic['formula'](1,0,frame_rate)])
                     this_timeline['BG1'] = 'black' # 黑色背景
@@ -2396,7 +2404,7 @@ class RplGenLog(Script):
                 height = config.Height
                 try:
                     # 建立小节
-                    this_timeline=pd.DataFrame(index=range(0,frame_rate*5),dtype=str,columns=self.render_arg) # 5s
+                    this_timeline=pd.DataFrame(index=range(0,frame_rate*5),dtype=object,columns=self.render_arg) # 5s
                     # 背景
                     alpha_timeline = np.hstack([self.dynamic['formula'](0,1,frame_rate//2),np.ones(frame_rate*4-frame_rate//2),self.dynamic['formula'](1,0,frame_rate)])
                     this_timeline['BG1'] = 'black' # 黑色背景
@@ -2459,7 +2467,7 @@ class RplGenLog(Script):
                 this_dialog_method = {'Am':None,'Bb':None,'A1':0,'A2':0,'A3':0}
                 try:
                     # 持续指定帧，仅显示当前背景
-                    this_timeline=pd.DataFrame(index=range(0,this_section['time']),dtype=str,columns=self.render_arg)
+                    this_timeline=pd.DataFrame(index=range(0,this_section['time']),dtype=object,columns=self.render_arg)
                     # 停留的帧：当前时间轴的最后一帧，不含S图层
                     try:
                         wait_frame = self.main_timeline.dropna(subset=['section']).iloc[-1].copy()
@@ -2469,7 +2477,7 @@ class RplGenLog(Script):
                                 # 以防导出xml项目异常
                                 wait_frame[layer] = 'NA'
                         # 不应用：0：section，BGM，Voice，SE
-                        this_timeline[self.render_arg[1:-3]] = wait_frame[self.render_arg[1:-3]]
+                        this_timeline[self.render_arg[1:-3]] = wait_frame[self.render_arg[1:-3]].to_numpy()
                     except IndexError:
                         # 只采用背景图层（BG2）'BG2','BG2_a','BG2_c','BG2_p'
                         this_timeline['BG2'] = this_background

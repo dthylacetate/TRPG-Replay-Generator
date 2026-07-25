@@ -36,7 +36,7 @@ class SpeechSynthesizer:
     # 建立语音合成对象
     def bulid_tts_engine(self) -> pd.Series:
         # TTS engines 对象的容器
-        TTS = pd.Series(index=self.charactor_table.index,dtype='str')
+        TTS = pd.Series(index=self.charactor_table.index,dtype=object)
         # 逐个遍历角色
         for key,value in self.charactor_table.iterrows():
             try:
@@ -92,9 +92,12 @@ class SpeechSynthesizer:
             except ValueError as E:
                 # 包含非法音源名，异常退出
                 print(E)
-            except SynthesisError as E:
-                # 无法初始化
-                raise E
+                TTS[key] = None
+            except Exception as E:
+                # An unavailable cloud provider must not block local voices or
+                # projects that do not synthesize this character in this run.
+                print(WarningPrint('TTSInitFail', key, E))
+                TTS[key] = None
                 
         # 返回 TTS engine
         return TTS

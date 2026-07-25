@@ -504,6 +504,8 @@ class WarningPrint(Print):
                         "第{}行（对话行）中无有效的待合成文本，这个小节的持续时长将被设置为1秒！"],
         'BadSpeaker'  :["Unsupported speaker name '{}'.",
                         "不支持的发音人名：“{}”"],
+        'TTSInitFail' :["Voice engine for '{}' is unavailable: {}.",
+                        "角色“{}”的语音引擎不可用：{}。"],
         'PrevFail'    :["Synthesis failed in preview, due to: {}",
                         "试听时语音合成失败，由于：{}"],
         'AuPlayFail'  :["Failed to play the audio, due to: {}",
