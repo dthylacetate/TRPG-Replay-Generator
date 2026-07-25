@@ -93,8 +93,9 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_tes
 - `tkextrafont` is not installable from its public package on macOS because its
   build script invokes Linux `pacman`. It is not required for startup; the UI
   currently falls back to a system font.
-- FFmpeg is a development dependency installed through Homebrew. A later
-  packaging stage will bundle a native FFmpeg executable inside the `.app`.
+- FFmpeg is a development dependency installed through Homebrew when running
+  the source tree. The packaged `.app` already bundles a native ARM64 FFmpeg
+  executable.
 - The current source still assumes it runs from the repository root. Resource
   path refactoring is the next implementation stage.
 - Cloud TTS services still require valid provider credentials and an SDK version
