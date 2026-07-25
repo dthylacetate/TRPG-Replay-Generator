@@ -1,0 +1,18 @@
+# Verified direct dependencies for Apple Silicon macOS with Python 3.11.
+# tkextrafont is intentionally omitted: its published build scripts require
+# Linux pacman. The application falls back to a system terminal font on macOS.
+pygame==2.6.1
+numpy==2.4.6
+pandas==3.0.5
+Pillow==12.3.0
+ffmpeg-python==0.2.0
+pydub==0.25.1
+openpyxl==3.1.5
+azure-cognitiveservices-speech==1.51.1
+ttkbootstrap==1.10.1
+chlorophyll==0.3.1
+pyttsx3==2.90
+websocket-client==1.0.1
+pinyin==0.4.0
+emoji==2.14.1
+alibabacloud-nls-python-sdk==1.0.2
