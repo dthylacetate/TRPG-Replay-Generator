@@ -83,8 +83,10 @@ conda run --no-capture-output --name rplgen-macos python tools_scripts/smoke_tes
   bundled FFmpeg, and a GUI launch outside the source checkout.
 - The initial bundle is approximately 259 MB and is written to
   `dist/macos/RplGenStudio.app`.
-- Preview and MP4 export run in the foreground on macOS because Pygame/Cocoa
-  windows may only be created on the application's main thread.
+- Preview, MP4, and XML output run in a dedicated macOS process because
+  Pygame/Cocoa windows may only be created on that process's main thread. Each run
+  writes diagnostic output to `logs/<script>_<timestamp>.<operation>.log` in
+  the project directory, including worker exit status if it terminates early.
 
 ## Known Baseline Limitations
 

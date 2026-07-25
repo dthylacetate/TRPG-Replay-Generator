@@ -8,6 +8,9 @@ import os
 import tkinter as tk
 import ttkbootstrap as ttk
 import threading
+import multiprocessing
+from queue import Empty
+from pathlib import Path
 import pygame
 from ttkbootstrap.tooltip import ToolTip
 from ttkbootstrap.toast import ToastNotification
@@ -28,6 +31,7 @@ from .GUI_Util import FreeToolTip
 from .ProjConfig import preference
 from .Utils import readable_timestamp
 from .Platform import is_macos
+from .MacOutputWorker import run_macos_output
 
 # 搜索窗口
 class SearchBar(ttk.Frame):
@@ -307,19 +311,79 @@ class OutPutCommand(ttk.Frame):
             print(tr("无效的执行"))
             self.winfo_toplevel().navigate_bar.enable_navigate()
             return
-        # Cocoa requires window creation and event handling on the main thread.
-        # Pygame is used by preview and video export, so background execution
-        # crashes macOS instead of returning a normal Python exception.
-        if is_macos() and output_type in ['display', 'recode']:
-            self.runing_thread = None
-            Link['runing_thread'] = None
-            runner()
+        # Cocoa requires Pygame window creation in a process main thread. A
+        # Tk callback or a Python worker thread both share the GUI process, so
+        # macOS may terminate the app instead of raising a Python exception.
+        if is_macos() and output_type in ['display', 'recode', 'exportpr']:
+            self.start_macos_output_process(output_type)
             return
         # 新建线程
         self.runing_thread = threading.Thread(target=runner)
         # 开始执行
         self.runing_thread.start()
         Link['runing_thread'] = self.runing_thread
+    def start_macos_output_process(self, output_type: str):
+        timestamp = readable_timestamp()
+        key = f"{self.name}_{timestamp}"
+        self.macos_output_type = output_type
+        log_dir = Path(Link['media_dir']) / 'logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        self.macos_output_log_path = log_dir / f'{key}.{output_type}.log'
+        self.macos_output_log_path.write_text(
+            f'[macOS output] Starting {output_type} from {self.page.page_name}.\n',
+            encoding='utf-8',
+        )
+        self.macos_output_queue = multiprocessing.Queue()
+        self.runing_thread = multiprocessing.Process(
+            target=run_macos_output,
+            args=(
+                output_type,
+                self.page.ref_config.get_struct(),
+                self.page.ref_medef.struct,
+                self.page.ref_chartab.struct,
+                self.page.content.struct,
+                Link['media_dir'],
+                Link['media_dir'],
+                key,
+                self.page.page_name,
+                self.macos_output_queue,
+                str(self.macos_output_log_path),
+            ),
+        )
+        Link['pipeline'] = self.runing_thread
+        Link['runing_thread'] = self.runing_thread
+        Link['terminal_control'].configure(state='normal')
+        self.runing_thread.start()
+        print(f'[macOS output] Log file: {self.macos_output_log_path}')
+        self.after(100, self.poll_macos_output_process, key, None)
+    def poll_macos_output_process(self, key: str, exit_status):
+        try:
+            while True:
+                event, value = self.macos_output_queue.get_nowait()
+                if event == 'log':
+                    print(value, end='')
+                elif event == 'complete':
+                    exit_status = value
+        except Empty:
+            pass
+        if self.runing_thread.is_alive():
+            self.after(100, self.poll_macos_output_process, key, exit_status)
+            return
+        if exit_status is None:
+            exit_status = 0 if self.runing_thread.exitcode == 0 else 1
+        with self.macos_output_log_path.open('a', encoding='utf-8') as log_file:
+            log_file.write(f'\n[macOS output] Process exit code: {self.runing_thread.exitcode}; status: {exit_status}.\n')
+        self.runing_thread.join()
+        Link['pipeline'] = None
+        Link['terminal_control'].configure(state='disable')
+        self.winfo_toplevel().navigate_bar.enable_navigate()
+        self.show_toast(
+            message=tr('【{core}】执行完毕\n退出状态是：【{status}】').format(
+                core={'display': tr('播放预览'), 'recode': tr('导出视频'), 'exportpr': tr('导出PR项目')}[self.macos_output_type],
+                status=self.status[exit_status],
+            ),
+            notice=False,
+        )
     def return_project(self):
         self.winfo_toplevel().navigate_bar.press_button('project',force=True)
     def show_toast(self,message,notice=True):
