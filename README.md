@@ -122,6 +122,14 @@ dist/macos/RplGenStudio.app
 xattr -dr com.apple.quarantine dist/macos/RplGenStudio.app
 ```
 
+如需将应用交给其他 Apple Silicon Mac 用户测试，可生成保留应用包结构的 ZIP 与 SHA-256 校验文件：
+
+```sh
+conda run --no-capture-output --name rplgen-macos python tools_scripts/package_macos_zip.py
+```
+
+生成文件位于 `dist/macos/RplGenStudio-macos-arm64.zip` 及同目录的 `.sha256` 校验文件。接收者解压后可将 `RplGenStudio.app` 拖到“应用程序”文件夹；首次打开仍可能需要处理 Gatekeeper 提示。
+
 对外发布前需要使用 Apple Developer 证书签名、提交 notarization，并通过 DMG 或 ZIP 分发。不要把任何云 TTS 密钥写入应用资源或提交到仓库。
 
 ## 7. 已知限制
